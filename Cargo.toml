@@ -5,6 +5,7 @@ name = "polysplit"
 version = "0.1.0"
 edition = "2021"
 authors = ["Vitaly Chezganov"]
+description = "Algorithm that allows to split polylines into segments defined by the list of points not necessary belonging to the polyline"
 
 
 [profile.release]
