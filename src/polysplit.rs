@@ -1,60 +1,11 @@
-use std::fmt;
-use std::error;
-use itertools::Itertools;
 use std::cmp::{Ord, Ordering, PartialEq, Eq, PartialOrd};
 use std::collections::BinaryHeap;
-use std::fmt::Debug;
 use std::ops::Add;
+use itertools::Itertools;
 
+use crate::{PolySplitErrorKind, PolySplitError, Result};
+use crate::{DistanceToSegmentResult, DistanceToSegment};
 
-pub struct DistanceToSegmentResult<P, D>
-where
-    P: Copy,
-    D: Copy + PartialOrd + Add<Output = D>,
-{
-    pub cut_ratio: f64,
-    pub cut_point: P,
-    pub distance: D,
-}
-
-pub trait DistanceToSegment<D>
-where
-    Self: Copy,
-    D: Copy + PartialOrd + Add<Output = D>,
-{
-    fn distance_to_segment(&self, segment: (&Self, &Self)) -> DistanceToSegmentResult<Self, D>;
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-#[non_exhaustive]
-pub enum PolySplitErrorKind {
-    InvalidPolyline,
-    InvalidPoints,
-    PointFarAway,
-    CannotSplit,
-}
-
-#[derive(Debug)]
-pub struct PolySplitError {
-    pub(super) kind: PolySplitErrorKind,
-    pub message: String,
-}
-
-impl PolySplitError {
-    pub fn kind(&self) -> &PolySplitErrorKind {
-        &self.kind
-    }    
-}
-
-impl fmt::Display for PolySplitError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", self.message)
-    }
-}
-
-impl error::Error for PolySplitError {}
-
-type Result<T> = std::result::Result<T, PolySplitError>;
 
 struct Vertex<P, D> {
     point_index: usize,
@@ -105,14 +56,14 @@ where
     if polyline.len() <= 1 {
         return Err(PolySplitError{
             kind: PolySplitErrorKind::InvalidPolyline,
-            message: "polyline has not enough points".to_string(),
+            point_index: None,
         });
     }
 
     if points.len() <= 1 {
         return Err(PolySplitError{
             kind: PolySplitErrorKind::InvalidPoints,
-            message: "number of points are not enough".to_string(),
+            point_index: None,
         });
     }
 
@@ -155,7 +106,7 @@ where
         if start_position == end_position {
             return Err(PolySplitError{
                 kind: PolySplitErrorKind::PointFarAway,
-                message: "point has no closest segments".to_string(),
+                point_index: Some(point_index),
             });
         }
 
@@ -230,7 +181,7 @@ where
     if path.is_empty() {
         return Err(PolySplitError{
             kind: PolySplitErrorKind::CannotSplit,
-            message: "cannot split polyline".to_string(),
+            point_index: None,
         });
     }
 

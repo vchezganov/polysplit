@@ -1,3 +1,9 @@
+mod result;
+pub use result::{PolySplitErrorKind, PolySplitError, Result};
+
+mod interface;
+pub use interface::{DistanceToSegmentResult, DistanceToSegment};
+
 mod polysplit;
 pub use crate::polysplit::polyline_split;
 

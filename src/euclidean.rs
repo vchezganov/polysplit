@@ -1,4 +1,4 @@
-use crate::polysplit::{DistanceToSegment, DistanceToSegmentResult};
+use crate::{DistanceToSegmentResult, DistanceToSegment};
 
 #[derive(Clone, Copy, Debug)]
 pub struct Point(pub f64, pub f64);
