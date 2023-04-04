@@ -1,4 +1,4 @@
-use crate::polysplit::{DistanceToSegment, DistanceToSegmentResult};
+use crate::polysplit::{PolySplit, CutRatioResult, DistanceToSegmentResult};
 
 #[derive(Clone, Copy, Debug)]
 pub struct Point(pub f64, pub f64);
@@ -9,7 +9,11 @@ impl Point {
     }
 }
 
-impl DistanceToSegment<f64> for Point {
+impl PolySplit<f64> for Point {
+    fn distance_to_point(&self, point: &Self) -> f64 {
+        return self.distance_to(point);
+    }
+
     fn distance_to_segment(&self, s: (&Point, &Point)) -> DistanceToSegmentResult<Point, f64> {
         let segment_distance = s.0.distance_to(s.1);
         if segment_distance < 1e-9 {
@@ -17,7 +21,7 @@ impl DistanceToSegment<f64> for Point {
             return DistanceToSegmentResult{
                 distance,
                 cut_point: *s.0,
-                cut_ratio: 0.0,
+                cut_ratio: CutRatioResult::Begin,
             };
         }
 
@@ -36,7 +40,7 @@ impl DistanceToSegment<f64> for Point {
             DistanceToSegmentResult{
                 distance,
                 cut_point: *s.0,
-                cut_ratio: 0.0,
+                cut_ratio: CutRatioResult::Begin,
             }
         } else if cut_ratio >= 1.0 {
             let distance = self.distance_to(s.1);
@@ -44,7 +48,7 @@ impl DistanceToSegment<f64> for Point {
             DistanceToSegmentResult{
                 distance,
                 cut_point: *s.1,
-                cut_ratio: 1.0,
+                cut_ratio: CutRatioResult::End,
             }
         } else {
             let x = s.0.0 + cut_ratio * vx;
@@ -55,7 +59,7 @@ impl DistanceToSegment<f64> for Point {
             DistanceToSegmentResult{
                 distance,
                 cut_point,
-                cut_ratio,
+                cut_ratio: CutRatioResult::Medium(cut_ratio),
             }
         }
     }

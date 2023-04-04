@@ -1,27 +1,83 @@
 use std::fmt;
 use std::error;
-use itertools::Itertools;
 use std::cmp::{Ord, Ordering, PartialEq, Eq, PartialOrd};
 use std::collections::BinaryHeap;
 use std::fmt::Debug;
 use std::ops::Add;
 
+/// CutRatioResult presents the closest projection of the point to the segment.
+pub enum CutRatioResult {
+    /// The closest projection is the start of the segment.
+    Begin,
+    /// The closest projection is the point on the segment that splits it in
+    /// the defined proportion (usually `0.0 < ratio < 1.0` where `0.0` is the start
+    /// and `1.0` is the end of the segment).
+    Medium(f64),
+    /// The closest projection is the end of the segment.
+    End,
+}
 
+impl PartialEq for CutRatioResult {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::Begin, Self::Begin) => true,
+            (Self::Medium(s), Self::Medium(o)) => s.eq(o),
+            (Self::End, Self::End) => true,
+            _ => false,
+        }
+    }
+}
+
+impl Eq for CutRatioResult {}
+
+impl PartialOrd for CutRatioResult {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for CutRatioResult {
+    fn cmp(&self, other: &Self) -> Ordering {
+        match (self, other) {
+            (Self::Begin, Self::Begin) => Ordering::Equal,
+            (Self::Begin, _) => Ordering::Less,
+            (Self::Medium(_), Self::Begin) => Ordering::Greater,
+            (Self::Medium(s), Self::Medium(o)) => s.total_cmp(o),
+            (Self::Medium(_), Self::End) => Ordering::Less,
+            (Self::End, Self::End) => Ordering::Equal,
+            (Self::End, _) => Ordering::Greater,
+        }
+    }
+}
+
+/// DistanceToSegmentResult presents the projection results of the point to the segment.
 pub struct DistanceToSegmentResult<P, D>
 where
     P: Copy,
     D: Copy + PartialOrd + Add<Output = D>,
 {
-    pub cut_ratio: f64,
+    pub cut_ratio: CutRatioResult,
     pub cut_point: P,
     pub distance: D,
 }
 
-pub trait DistanceToSegment<D>
+/// PolySplit defines methods for types that can be used in **polyline_split** method.
+pub trait PolySplit<D>
 where
     Self: Copy,
     D: Copy + PartialOrd + Add<Output = D>,
 {
+    /// Returns distance to another point.
+    ///
+    /// # Arguments
+    ///
+    /// * `point` - A point distance to should be calculated
+    fn distance_to_point(&self, point: &Self) -> D;
+    /// Returns projection [results](DistanceToSegmentResult) to the segment.
+    ///
+    /// # Arguments
+    ///
+    /// * `segment` - A segment presented by a tuple of points
     fn distance_to_segment(&self, segment: (&Self, &Self)) -> DistanceToSegmentResult<Self, D>;
 }
 
@@ -43,7 +99,7 @@ pub struct PolySplitError {
 impl PolySplitError {
     pub fn kind(&self) -> &PolySplitErrorKind {
         &self.kind
-    }    
+    }
 }
 
 impl fmt::Display for PolySplitError {
@@ -54,13 +110,18 @@ impl fmt::Display for PolySplitError {
 
 impl error::Error for PolySplitError {}
 
-type Result<T> = std::result::Result<T, PolySplitError>;
+pub type Result<T> = std::result::Result<T, PolySplitError>;
 
-struct Vertex<P, D> {
-    point_index: usize,
+struct CutPoint<P>
+where P: std::fmt::Debug {
     segment_index: usize,
-    cut_ratio: f64,
+    cut_ratio: CutRatioResult,
     cut_point: P,
+}
+
+struct Vertex<D> {
+    point_index: usize,
+    cut_point_index: usize,
     distance_to: D,
 }
 
@@ -93,13 +154,36 @@ impl<D: Copy + PartialOrd> PartialOrd for State<D> {
     }
 }
 
+/// Splits polyline into segments by the defined list of points.
+///
+/// # Examples
+///
+/// ```
+/// use polysplit::euclidean::Point;
+/// use polysplit::polyline_split;
+///
+/// let polyline = vec![
+///     Point(0.0, 0.0),
+///     Point(10.0, 0.0),
+///     Point(20.0, 0.0),
+/// ];
+/// let points = vec![
+///     Point(1.0, 1.0),
+///     Point(19.0, 1.0),
+/// ];
+///
+/// let segments = polyline_split(&polyline, &points, None).unwrap();
+///
+/// assert_eq!(segments.len(), 1);
+/// println!("{:?}", segments[0]);
+/// ```
 pub fn polyline_split<P, D>(
     polyline: &[P],
     points: &[P],
     distance_threshold: Option<D>,
 ) -> Result<Vec<Vec<P>>>
 where
-    P: DistanceToSegment<D>,
+    P: PolySplit<D> + std::fmt::Debug,
     D: Copy + PartialOrd + Add<Output = D>,
 {
     if polyline.len() <= 1 {
@@ -118,36 +202,94 @@ where
 
     let segments_len = polyline.len() - 1;
     let points_len = points.len();
-    let segments: Vec<(&P, &P)> = polyline.iter().tuple_windows().collect();
 
-    // Building graph
-    let mut vertexes: Vec<Vertex<P, D>> = Vec::new();
-    let mut edges: Vec<(usize, usize)> = Vec::new();
+    // Collecting all possible cut points
+    let mut cut_points: Vec<CutPoint<P>> = Vec::new();
 
-    let mut last_reachable_segment_index = 0;
+    for segment_index in 0..segments_len {
+        let segment_a = &polyline[segment_index];
+        let segment_b = &polyline[segment_index + 1];
 
-    for (point_index, point) in points.iter().enumerate() {
-        let start_position = vertexes.len();
-        let mut first_match_segment_index = None;
+        let mut is_start_added = false;
+        let mut is_end_added = false;
 
-        for (segment_index, segment) in segments.iter().enumerate().take(segments_len).skip(last_reachable_segment_index) {
-            let psd: DistanceToSegmentResult<P, D> = point.distance_to_segment(*segment);
+        for point in points.iter() {
+            let psd: DistanceToSegmentResult<P, D> = point.distance_to_segment((segment_a, segment_b));
             if let Some(dt) = distance_threshold {
                 if psd.distance > dt {
                     continue;
                 }
             }
 
-            if first_match_segment_index.is_none() {
-                first_match_segment_index = Some(segment_index);
+            match psd.cut_ratio {
+                CutRatioResult::Begin => {
+                    if segment_index == 0 && !is_start_added {
+                        cut_points.push(CutPoint {
+                            segment_index,
+                            cut_ratio: psd.cut_ratio,
+                            cut_point: *segment_a,
+                        });
+
+                        is_start_added = true;
+                    }
+                }
+
+                CutRatioResult::End => {
+                    if !is_end_added {
+                        cut_points.push(CutPoint {
+                            segment_index,
+                            cut_ratio: psd.cut_ratio,
+                            cut_point: *segment_b,
+                        });
+
+                        is_end_added = true;
+                    }
+                },
+
+                _ => {
+                    cut_points.push(CutPoint {
+                        segment_index,
+                        cut_ratio: psd.cut_ratio,
+                        cut_point: psd.cut_point,
+                    });
+                }
+            }
+        }
+    }
+
+    cut_points.sort_unstable_by(|a, b| {
+        match a.segment_index.cmp(&b.segment_index) {
+            Ordering::Equal => a.cut_ratio.partial_cmp(&b.cut_ratio).unwrap(),
+            v => v,
+        }
+    });
+
+    // Building graph
+    let mut vertexes: Vec<Vertex<D>> = Vec::new();
+    let mut edges: Vec<(usize, usize)> = Vec::new();
+
+    let mut last_reachable_cut_point_index = 0;
+
+    for (point_index, point) in points.iter().enumerate() {
+        let start_position = vertexes.len();
+        let mut first_match_cut_point_index = None;
+
+        for (cut_point_index, cut_point) in cut_points.iter().enumerate().skip(last_reachable_cut_point_index) {
+            let distance_to = point.distance_to_point(&cut_point.cut_point);
+            if let Some(dt) = distance_threshold {
+                if distance_to > dt {
+                    continue;
+                }
+            }
+
+            if first_match_cut_point_index.is_none() {
+                first_match_cut_point_index = Some(cut_point_index);
             }
 
             vertexes.push(Vertex {
                 point_index,
-                segment_index,
-                distance_to: psd.distance,
-                cut_point: psd.cut_point,
-                cut_ratio: psd.cut_ratio,
+                cut_point_index,
+                distance_to,
             });
         }
 
@@ -160,10 +302,10 @@ where
         }
 
         edges.push((start_position, end_position));
-        last_reachable_segment_index = first_match_segment_index.unwrap_or_default();
+        last_reachable_cut_point_index = first_match_cut_point_index.unwrap_or_default();
     }
 
-    // Initializing
+    // Initializing start points
     let vertexes_len = vertexes.len();
     let mut dist: Vec<Option<D>> = (0..vertexes_len).map(|_| None).collect();
     let mut prev: Vec<Option<usize>> = (0..vertexes_len).map(|_| None).collect();
@@ -180,7 +322,7 @@ where
         });
     }
 
-    // Calculating
+    // Searching for shortest path using Dijkstra's algorithm
     let mut destination = None;
     while let Some(State { distance_total, position }) = priority_queue.pop() {
         let current_vertex = &vertexes[position];
@@ -203,19 +345,18 @@ where
         for idx in from_idx..to_idx {
             let neighbour_vertex = &vertexes[idx];
 
-            if current_vertex.segment_index > neighbour_vertex.segment_index ||
-                (current_vertex.segment_index == neighbour_vertex.segment_index && current_vertex.cut_ratio > neighbour_vertex.cut_ratio) {
+            if current_vertex.cut_point_index > neighbour_vertex.cut_point_index {
                 continue;
             }
 
             let relaxed_distance_total = distance_total + neighbour_vertex.distance_to;
             if dist[idx].map_or(true, |d| d > relaxed_distance_total) {
-                    dist[idx] = Some(relaxed_distance_total);
-                    prev[idx] = Some(position);
-                    priority_queue.push(State {
-                        distance_total: relaxed_distance_total,
-                        position: idx,
-                    });
+                dist[idx] = Some(relaxed_distance_total);
+                prev[idx] = Some(position);
+                priority_queue.push(State {
+                    distance_total: relaxed_distance_total,
+                    position: idx,
+                });
             }
         }
     }
@@ -239,29 +380,34 @@ where
     // Building sub-segments
     let mut segments: Vec<_> = Vec::with_capacity(segments_len);
     let mut current_vertex = &vertexes[path[0]];
+    let mut current_cut_point = &cut_points[current_vertex.cut_point_index];
 
     for next_idx in path[1..].iter() {
-        let next_vertex: &Vertex<P, D> = &vertexes[*next_idx];
+        let next_vertex: &Vertex<D> = &vertexes[*next_idx];
+        let next_cut_point = &cut_points[next_vertex.cut_point_index];
         let mut segment: Vec<_> = Vec::new();
 
-        if current_vertex.cut_ratio < 1.0 {
-            segment.push(current_vertex.cut_point);
+        if !matches!(current_cut_point.cut_ratio, CutRatioResult::End) {
+            segment.push(current_cut_point.cut_point);
         }
 
-        for segment_idx in current_vertex.segment_index..next_vertex.segment_index {
+        for segment_idx in current_cut_point.segment_index..next_cut_point.segment_index {
             segment.push(polyline[segment_idx + 1]);
         }
 
-        if next_vertex.cut_ratio > 0.0 {
-            segment.push(next_vertex.cut_point);
+        if !matches!(next_cut_point.cut_ratio, CutRatioResult::Begin) {
+            segment.push(next_cut_point.cut_point);
         }
 
+        // Two points are matched to same cut point
+        // So adding same point to be valid segment
         if segment.len() == 1 {
             segment.push(segment[0]);
         }
 
         segments.push(segment);
         current_vertex = next_vertex;
+        current_cut_point = &cut_points[current_vertex.cut_point_index];
     }
 
     Ok(segments)

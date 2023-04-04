@@ -5,12 +5,15 @@ name = "polysplit"
 version = "0.1.0"
 edition = "2021"
 authors = ["Vitaly Chezganov"]
-description = "Algorithm that allows to split polylines into segments defined by the list of points not necessary belonging to the polyline"
+description = "Algorithm that allows to split polylines into segments by the defined list of points not necessary belonging to the polyline"
+keywords = ["polyline", "splitting", "geometry"]
 
+homepage = "https://github.com/vchezganov/polysplit"
+repository = "https://github.com/vchezganov/polysplit"
+readme = "README.md"
+license-file = "LICENSE.md"
 
 [profile.release]
 lto = true
 
-
 [dependencies]
-itertools = "*"
