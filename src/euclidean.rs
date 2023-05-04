@@ -1,4 +1,4 @@
-use crate::polysplit::{PolySplit, CutRatioResult, DistanceToSegmentResult};
+use crate::{CutRatioResult, DistanceToSegmentResult, PolySplit};
 
 #[derive(Clone, Copy, Debug)]
 pub struct Point(pub f64, pub f64);
@@ -11,7 +11,7 @@ impl Point {
 
 impl PolySplit<f64> for Point {
     fn distance_to_point(&self, point: &Self) -> f64 {
-        return self.distance_to(point);
+        self.distance_to(point)
     }
 
     fn distance_to_segment(&self, s: (&Point, &Point)) -> DistanceToSegmentResult<Point, f64> {

@@ -1,65 +1,9 @@
-use std::fmt;
-use std::error;
 use std::cmp::{Ord, Ordering, PartialEq, Eq, PartialOrd};
 use std::collections::BinaryHeap;
-use std::fmt::Debug;
 use std::ops::Add;
 
-/// CutRatioResult presents the closest projection of the point to the segment.
-pub enum CutRatioResult {
-    /// The closest projection is the start of the segment.
-    Begin,
-    /// The closest projection is the point on the segment that splits it in
-    /// the defined proportion (usually `0.0 < ratio < 1.0` where `0.0` is the start
-    /// and `1.0` is the end of the segment).
-    Medium(f64),
-    /// The closest projection is the end of the segment.
-    End,
-}
-
-impl PartialEq for CutRatioResult {
-    fn eq(&self, other: &Self) -> bool {
-        match (self, other) {
-            (Self::Begin, Self::Begin) => true,
-            (Self::Medium(s), Self::Medium(o)) => s.eq(o),
-            (Self::End, Self::End) => true,
-            _ => false,
-        }
-    }
-}
-
-impl Eq for CutRatioResult {}
-
-impl PartialOrd for CutRatioResult {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some(self.cmp(other))
-    }
-}
-
-impl Ord for CutRatioResult {
-    fn cmp(&self, other: &Self) -> Ordering {
-        match (self, other) {
-            (Self::Begin, Self::Begin) => Ordering::Equal,
-            (Self::Begin, _) => Ordering::Less,
-            (Self::Medium(_), Self::Begin) => Ordering::Greater,
-            (Self::Medium(s), Self::Medium(o)) => s.total_cmp(o),
-            (Self::Medium(_), Self::End) => Ordering::Less,
-            (Self::End, Self::End) => Ordering::Equal,
-            (Self::End, _) => Ordering::Greater,
-        }
-    }
-}
-
-/// DistanceToSegmentResult presents the projection results of the point to the segment.
-pub struct DistanceToSegmentResult<P, D>
-where
-    P: Copy,
-    D: Copy + PartialOrd + Add<Output = D>,
-{
-    pub cut_ratio: CutRatioResult,
-    pub cut_point: P,
-    pub distance: D,
-}
+use crate::{PolySplitErrorKind, PolySplitError, Result};
+use crate::{CutRatioResult, DistanceToSegmentResult};
 
 /// PolySplit defines methods for types that can be used in **polyline_split** method.
 pub trait PolySplit<D>
@@ -80,37 +24,6 @@ where
     /// * `segment` - A segment presented by a tuple of points
     fn distance_to_segment(&self, segment: (&Self, &Self)) -> DistanceToSegmentResult<Self, D>;
 }
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-#[non_exhaustive]
-pub enum PolySplitErrorKind {
-    InvalidPolyline,
-    InvalidPoints,
-    PointFarAway,
-    CannotSplit,
-}
-
-#[derive(Debug)]
-pub struct PolySplitError {
-    pub(super) kind: PolySplitErrorKind,
-    pub message: String,
-}
-
-impl PolySplitError {
-    pub fn kind(&self) -> &PolySplitErrorKind {
-        &self.kind
-    }
-}
-
-impl fmt::Display for PolySplitError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", self.message)
-    }
-}
-
-impl error::Error for PolySplitError {}
-
-pub type Result<T> = std::result::Result<T, PolySplitError>;
 
 struct CutPoint<P>
 where P: std::fmt::Debug {

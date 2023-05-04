@@ -2,10 +2,21 @@
 //!
 //! `polysplit` crate implements the algorithm allowing to split polylines
 //! into segments by the defined list of points not necessary belonging to the polyline.
+
+mod polylib_error;
+pub use crate::polylib_error::{PolySplitErrorKind, PolySplitError, Result};
+
+mod cut_ratio_result;
+pub use crate::cut_ratio_result::CutRatioResult;
+
+mod distance_to_segment_result;
+pub use crate::distance_to_segment_result::DistanceToSegmentResult;
+
 mod polysplit;
-pub use crate::polysplit::{CutRatioResult, DistanceToSegmentResult, PolySplit};
-pub use crate::polysplit::{PolySplitErrorKind, PolySplitError, Result};
-pub use crate::polysplit::polyline_split;
+pub use crate::polysplit::{PolySplit, polyline_split};
+
+mod polymerge;
+pub use crate::polymerge::polyline_merge;
 
 pub mod euclidean;
 

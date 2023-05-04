@@ -73,12 +73,8 @@ where
     fn distance_to_segment(&self, segment: (&Self, &Self)) -> DistanceToSegmentResult<Self, D>;
 }
 ```
-For example, it could be 3D plain `Point(x, y, z)`,
-geographical `Location(longitude, latitude)` or
-spherical `Point` projections.
-
-## Other usage
-
-Using the algorithm it is also possible to check
-if two polylines are similar within the certain distance threshold.
-Check (polyequal)[https://github.com/vchezganov/polyequal] library.
+For example, it could be projections of:
+* 3D plain coordinates - `Point(x, y, z)`
+* Geographical coordinates - `Location(longitude, latitude)`
+* Spherical coordinates - `Point(radial_distance, polar_angle, azimuthal angle)`
+* etc
