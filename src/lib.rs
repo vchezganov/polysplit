@@ -16,7 +16,7 @@ mod polysplit;
 pub use crate::polysplit::{PolySplit, polyline_split};
 
 mod polymerge;
-pub use crate::polymerge::polyline_merge;
+pub use crate::polymerge::{PolyMerge, polyline_merge};
 
 pub mod euclidean;
 

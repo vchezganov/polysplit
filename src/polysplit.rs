@@ -25,8 +25,7 @@ where
     fn distance_to_segment(&self, segment: (&Self, &Self)) -> DistanceToSegmentResult<Self, D>;
 }
 
-struct CutPoint<P>
-where P: std::fmt::Debug {
+struct CutPoint<P> {
     segment_index: usize,
     cut_ratio: CutRatioResult,
     cut_point: P,
@@ -96,7 +95,7 @@ pub fn polyline_split<P, D>(
     distance_threshold: Option<D>,
 ) -> Result<Vec<Vec<P>>>
 where
-    P: PolySplit<D> + std::fmt::Debug,
+    P: PolySplit<D>,
     D: Copy + PartialOrd + Add<Output = D>,
 {
     if polyline.len() <= 1 {

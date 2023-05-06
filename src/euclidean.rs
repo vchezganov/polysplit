@@ -1,4 +1,4 @@
-use crate::{CutRatioResult, DistanceToSegmentResult, PolySplit};
+use crate::{CutRatioResult, DistanceToSegmentResult, PolySplit, PolyMerge};
 
 #[derive(Clone, Copy, Debug)]
 pub struct Point(pub f64, pub f64);
@@ -62,5 +62,11 @@ impl PolySplit<f64> for Point {
                 cut_ratio: CutRatioResult::Medium(cut_ratio),
             }
         }
+    }
+}
+
+impl PolyMerge<f64> for Point {
+    fn middle_point(&self, p: &Point) -> Point {
+        Point((self.0 + p.0) / 2.0, (self.1 + p.1) / 2.0)
     }
 }

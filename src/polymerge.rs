@@ -1,33 +1,39 @@
 use std::ops::Add;
 
-use crate::{CutRatioResult, DistanceToSegmentResult};
-use crate::{polyline_split, euclidean::Point};
+use crate::{PolySplit, polyline_split};
+use crate::euclidean::Point;
 
 /// PolyMerge defines methods for types that can be used in **polyline_merge** method.
 pub trait PolyMerge<D>
 where
-    Self: Copy,
+    Self: PolySplit<D>,
     D: Copy + PartialOrd + Add<Output = D>,
 {
-    /// Returns distance to another point.
+    /// Returns middle point between current and another points.
     ///
     /// # Arguments
     ///
-    /// * `point` - A point distance to should be calculated
-    fn distance_to_point(&self, point: &Self) -> D;
-    /// Returns projection [results](DistanceToSegmentResult) to the segment.
-    ///
-    /// # Arguments
-    ///
-    /// * `segment` - A segment presented by a tuple of points
-    fn distance_to_segment(&self, segment: (&Self, &Self)) -> DistanceToSegmentResult<Self, D>;
+    /// * `point` - A point for what middle point should be returned
+    fn middle_point(&self, point: &Self) -> Self;
 }
 
 
-pub fn polyline_merge(b: &[Point], a: &[Point], threshold: f64) -> bool {
-    let threshold = Some(threshold);
+// fn polyline_split_signature<P, D>(
+//     polyline: &[P],
+//     points: &[P],
+//     distance_threshold: Option<D>,
+// ) -> Result<Vec<Vec<P>>>
+// where
+//     P: PolySplit<D> + std::fmt::Debug,
+//     D: Copy + PartialOrd + Add<Output = D>,
+// {}
 
-    let first_split = polyline_split(a, b, threshold);
+pub fn polyline_merge<P, D>(b: &[P], a: &[P], distance_threshold: Option<D>) -> bool
+where
+    P: PolyMerge<D> + std::fmt::Debug,
+    D: Copy + PartialOrd + Add<Output = D>,
+{
+    let first_split = polyline_split(a, b, distance_threshold);
     let first_segments = match first_split {
         Ok(v) => v,
         Err(_) => return false,
@@ -39,7 +45,7 @@ pub fn polyline_merge(b: &[Point], a: &[Point], threshold: f64) -> bool {
         polyline.extend_from_slice(&segment[1..]);
     }
 
-    let second_split = polyline_split(b, &polyline, threshold);
+    let second_split = polyline_split(b, &polyline, distance_threshold);
     let second_segments = match second_split {
         Ok(v) => v,
         Err(_) => return false,
@@ -48,12 +54,14 @@ pub fn polyline_merge(b: &[Point], a: &[Point], threshold: f64) -> bool {
     // 0
     let p0 = polyline[0];
     let p1 = second_segments[0][0];
-    polyline[0] = Point((p0.0 + p1.0) / 2.0, (p0.1 + p1.1) / 2.0);
+    // polyline[0] = Point((p0.0 + p1.0) / 2.0, (p0.1 + p1.1) / 2.0);
+    polyline[0] = p0.middle_point(&p1);
 
     for (i, p0) in polyline.iter_mut().skip(1).enumerate() {
         let p1 = second_segments[i].last().unwrap();
         // polyline[i] = Point((p0.0 + p1.0) / 2.0, (p0.1 + p1.1) / 2.0);
-        *p0 = Point((p0.0 + p1.0) / 2.0, (p0.1 + p1.1) / 2.0);
+        // *p0 = Point((p0.0 + p1.0) / 2.0, (p0.1 + p1.1) / 2.0);
+        *p0 = p0.middle_point(&p1);
     }
 
     let s = format!("{:?}", polyline).replace("Point", "");
@@ -65,7 +73,7 @@ pub fn polyline_merge(b: &[Point], a: &[Point], threshold: f64) -> bool {
     true
 }
 
-pub fn polyline_equal3(a: &[Point], b: &[Point], threshold: f64) -> bool {
+fn polyline_equal3(a: &[Point], b: &[Point], threshold: f64) -> bool {
     let threshold = Some(threshold);
 
     let a_split_by_b = match polyline_split(a, b, threshold) {
@@ -137,7 +145,7 @@ pub fn polyline_equal3(a: &[Point], b: &[Point], threshold: f64) -> bool {
 
 
 
-pub fn polyline_equal1(a: &[Point], b: &[Point], threshold: f64) -> bool {
+fn polyline_equal1(a: &[Point], b: &[Point], threshold: f64) -> bool {
     let threshold = Some(threshold);
 
     let first_split = polyline_split(a, b, threshold);
@@ -155,4 +163,47 @@ pub fn polyline_equal1(a: &[Point], b: &[Point], threshold: f64) -> bool {
     let second_split = polyline_split(b, &polyline, threshold);
 
     second_split.is_ok()
+}
+
+
+#[cfg(test)]
+mod tests {
+    use crate::euclidean::Point;
+    use crate::polyline_merge;
+
+    #[test]
+    fn test_example01() {
+        let a = vec![(20.0, 20.0), (80.0, 40.0), (160.0, 80.0), (240.0, 60.0), (300.0, 60.0), (360.0, 100.0), (440.0, 100.0), (500.0, 80.0), (560.0, 60.0), (620.0, 60.0), (660.0, 100.0), (720.0, 100.0), (780.0, 80.0), (840.0, 60.0)];
+        let b = vec![(40.0, 40.0), (80.0, 20.0), (140.0, 40.0), (200.0, 80.0), (260.0, 60.0), (340.0, 60.0), (340.0, 100.0), (400.0, 80.0), (480.0, 100.0), (520.0, 60.0), (600.0, 40.0), (680.0, 100.0), (740.0, 60.0), (860.0, 40.0)];
+
+        let p_a: Vec<_> = a.iter().map(|p| Point(p.0, p.1)).collect();
+        let p_b: Vec<_> = b.iter().map(|p| Point(p.0, p.1)).collect();
+
+        assert_eq!(polyline_merge(&p_a, &p_b, Some(35.0)), true);
+        assert_eq!(polyline_merge(&p_a, &p_b, Some(10.0)), false);
+    }
+
+    #[test]
+    fn test_example02() {
+        let a = vec![(40.0, 60.0), (140.0, 60.0), (160.0, 100.0), (220.0, 120.0), (280.0, 100.0), (320.0, 80.0), (420.0, 60.0), (440.0, 120.0), (500.0, 160.0), (540.0, 140.0), (580.0, 120.0), (640.0, 80.0), (720.0, 100.0), (760.0, 160.0), (860.0, 140.0), (980.0, 120.0), (1080.0, 80.0), (1080.0, 40.0)];
+        let b = vec![(60.0, 40.0), (160.0, 60.0), (200.0, 100.0), (260.0, 80.0), (340.0, 60.0), (380.0, 80.0), (440.0, 80.0), (500.0, 120.0), (520.0, 160.0), (580.0, 140.0), (640.0, 100.0), (680.0, 100.0), (720.0, 140.0), (780.0, 140.0), (800.0, 160.0), (840.0, 140.0), (880.0, 120.0), (920.0, 140.0), (940.0, 100.0), (1000.0, 100.0), (1040.0, 100.0), (1100.0, 60.0), (1080.0, 40.0)];
+
+        let p_a: Vec<_> = a.iter().map(|p| Point(p.0, p.1)).collect();
+        let p_b: Vec<_> = b.iter().map(|p| Point(p.0, p.1)).collect();
+
+        assert_eq!(polyline_merge(&p_a, &p_b, Some(35.0)), true);
+        assert_eq!(polyline_merge(&p_a, &p_b, Some(10.0)), false);
+    }
+
+    #[test]
+    fn test_example03() {
+        let a = vec![(20.0, 20.0), (80.0, 60.0), (140.0, 100.0), (180.0, 120.0), (220.0, 160.0), (260.0, 200.0), (300.0, 240.0), (340.0, 220.0), (360.0, 200.0), (400.0, 160.0), (420.0, 120.0), (480.0, 100.0), (500.0, 120.0), (560.0, 120.0), (620.0, 120.0), (720.0, 100.0), (780.0, 100.0), (840.0, 80.0), (860.0, 120.0)];
+        let b = vec![(40.0, 60.0), (100.0, 40.0), (120.0, 60.0), (160.0, 80.0), (200.0, 120.0), (240.0, 120.0), (280.0, 140.0), (320.0, 140.0), (340.0, 140.0), (400.0, 120.0), (420.0, 100.0), (460.0, 80.0), (500.0, 100.0), (540.0, 120.0), (580.0, 140.0), (640.0, 120.0), (660.0, 100.0), (720.0, 80.0), (740.0, 80.0), (800.0, 100.0), (840.0, 100.0)];
+
+        let p_a: Vec<_> = a.iter().map(|p| Point(p.0, p.1)).collect();
+        let p_b: Vec<_> = b.iter().map(|p| Point(p.0, p.1)).collect();
+
+        assert_eq!(polyline_merge(&p_a, &p_b, Some(35.0)), false);
+        assert_eq!(polyline_merge(&p_a, &p_b, Some(10.0)), false);
+    }
 }
