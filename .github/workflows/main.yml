@@ -3,10 +3,8 @@ name: Main Workflow
 on:
   push:
     branches:
+      - github-actions
       - main
-
-env:
-  cache-name: cache-badges
 
 jobs:
   tests:
@@ -29,15 +27,15 @@ jobs:
       - name: Create badge artifacts
         run: |
           echo "Coverage ${{ env.coverage_result }}"
-          mkdir -p ~/github-pages
-          mv -f tarpaulin-report.html ~/github-pages/tarpaulin-report.html
-          curl "https://img.shields.io/badge/coverage-${{ env.coverage_result }}%25-success" --silent --fail --output ~/github-pages/coverage-badge.svg
+          mkdir -p .cache_badges
+          mv -f tarpaulin-report.html .cache_badges/tarpaulin-report.html
+          curl "https://img.shields.io/badge/coverage-${{ env.coverage_result }}%25-success" --silent --fail --output .cache_badges/coverage-badge.svg
 
-      - name: Cache badge artifacts
-        uses: actions/cache/save@v3
+      - uses: actions/cache@v2
+        id: cache-badges
         with:
-          path: ~/github-pages
-          key: ${{ env.cache-name }}-${{ github.sha }}
+          path: .cache_badges
+          key: cache-badges-${{ github.sha }}
 
   pages:
     needs: tests
@@ -60,11 +58,11 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Restore cache badge artifacts
-        uses: actions/cache/restore@v3
+      - uses: actions/cache@v2
+        id: cache-badges
         with:
-          path: ~/github-pages
-          key: ${{ env.cache-name }}-${{ github.sha }}
+          path: .cache_badges
+          key: cache-badges-${{ github.sha }}
 
       - name: Setup Pages
         uses: actions/configure-pages@v3
@@ -72,7 +70,7 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v1
         with:
-          path: '~/github-pages'
+          path: .cache_badges
 
       - name: Deploy to GitHub Pages
         id: deployment
