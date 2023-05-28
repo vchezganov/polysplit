@@ -26,14 +26,14 @@ jobs:
       - name: Create badge artifacts
         run: |
           echo "Coverage ${{ env.coverage_result }}"
-          mkdir -p ~/github-pages
-          mv -f tarpaulin-report.html ~/github-pages/tarpaulin-report.html
-          curl "https://img.shields.io/badge/coverage-${{ env.coverage_result }}%25-success" --silent --fail --output ~/github-pages/coverage-badge.svg
+          mkdir -p /tmp/github-pages
+          mv -f tarpaulin-report.html /tmp/github-pages/tarpaulin-report.html
+          curl "https://img.shields.io/badge/coverage-${{ env.coverage_result }}%25-success" --silent --fail --output /tmp/github-pages/coverage-badge.svg
 
       - name: Cache badge artifacts
         uses: actions/cache@v2
         with:
-          path: ~/github-pages
+          path: /tmp/github-pages
           key: cache-badges-${{ github.sha }}
 
   pages:
@@ -60,7 +60,7 @@ jobs:
       - name: Restore cache badge artifacts
         uses: actions/cache@v2
         with:
-          path: ~/github-pages
+          path: /tmp/github-pages
           key: cache-badges-${{ github.sha }}
 
       - name: Setup Pages
@@ -69,7 +69,7 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v1
         with:
-          path: ~/github-pages
+          path: /tmp/github-pages
 
       - name: Deploy to GitHub Pages
         id: deployment
