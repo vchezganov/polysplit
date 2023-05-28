@@ -61,7 +61,7 @@ jobs:
 
     steps:
       - name: Restore cache badge artifacts
-        uses: actions/cache/restore@v3
+        uses: actions/cache@v3
         with:
           path: ~/github-pages
           key: ${{ env.cache-name }}-${{ github.sha }}
