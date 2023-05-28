@@ -31,7 +31,8 @@ jobs:
           curl "https://img.shields.io/badge/coverage-${{ env.coverage_result }}%25-success" --silent --fail --output /tmp/github-pages/coverage-badge.svg
 
       - name: Cache badge artifacts
-        uses: actions/cache@v2
+        id: cache-badges
+        uses: actions/cache/save@v3
         with:
           path: /tmp/github-pages
           key: cache-badges-${{ github.sha }}
@@ -58,7 +59,7 @@ jobs:
 
     steps:
       - name: Restore cache badge artifacts
-        uses: actions/cache@v2
+        uses: actions/cache/restore@v3
         with:
           path: /tmp/github-pages
           key: cache-badges-${{ github.sha }}
