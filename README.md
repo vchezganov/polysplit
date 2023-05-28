@@ -1,3 +1,5 @@
+[![Test Coverage](https://vchezganov.github.io/polysplit/coverage-badge.svg)](https://vchezganov.github.io/polysplit/tarpaulin-report.html)
+
 **polysplit** library implements the algorithm allowing to split polylines
 into segments by the defined list of points not necessary belonging to the polyline.
 
